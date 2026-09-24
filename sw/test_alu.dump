@@ -1,0 +1,61 @@
+
+test_alu.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+00000000 <_start>:
+   0:	00000093          	addi	ra,zero,0
+   4:	06408093          	addi	ra,ra,100
+   8:	06400f13          	addi	t5,zero,100
+   c:	00100f93          	addi	t6,zero,1
+  10:	0be09463          	bne	ra,t5,b8 <fail>
+  14:	01e00113          	addi	sp,zero,30
+  18:	002081b3          	add	gp,ra,sp
+  1c:	08200f13          	addi	t5,zero,130
+  20:	00200f93          	addi	t6,zero,2
+  24:	09e19a63          	bne	gp,t5,b8 <fail>
+  28:	40208233          	sub	tp,ra,sp
+  2c:	04600f13          	addi	t5,zero,70
+  30:	00300f93          	addi	t6,zero,3
+  34:	09e21263          	bne	tp,t5,b8 <fail>
+  38:	00100293          	addi	t0,zero,1
+  3c:	01f29313          	slli	t1,t0,0x1f
+  40:	80000f37          	lui	t5,0x80000
+  44:	00400f93          	addi	t6,zero,4
+  48:	07e31863          	bne	t1,t5,b8 <fail>
+  4c:	01f35393          	srli	t2,t1,0x1f
+  50:	00100f13          	addi	t5,zero,1
+  54:	00500f93          	addi	t6,zero,5
+  58:	07e39063          	bne	t2,t5,b8 <fail>
+  5c:	0f0f1437          	lui	s0,0xf0f1
+  60:	f0f40413          	addi	s0,s0,-241 # f0f0f0f <end_program+0xf0f0e4b>
+  64:	333334b7          	lui	s1,0x33333
+  68:	33348493          	addi	s1,s1,819 # 33333333 <end_program+0x3333326f>
+  6c:	00947533          	and	a0,s0,s1
+  70:	03030f37          	lui	t5,0x3030
+  74:	303f0f13          	addi	t5,t5,771 # 3030303 <end_program+0x303023f>
+  78:	00600f93          	addi	t6,zero,6
+  7c:	03e51e63          	bne	a0,t5,b8 <fail>
+  80:	009465b3          	or	a1,s0,s1
+  84:	3f3f4f37          	lui	t5,0x3f3f4
+  88:	f3ff0f13          	addi	t5,t5,-193 # 3f3f3f3f <end_program+0x3f3f3e7b>
+  8c:	00700f93          	addi	t6,zero,7
+  90:	03e59463          	bne	a1,t5,b8 <fail>
+  94:	00944633          	xor	a2,s0,s1
+  98:	3c3c4f37          	lui	t5,0x3c3c4
+  9c:	c3cf0f13          	addi	t5,t5,-964 # 3c3c3c3c <end_program+0x3c3c3b78>
+  a0:	00800f93          	addi	t6,zero,8
+  a4:	01e61a63          	bne	a2,t5,b8 <fail>
+  a8:	000012b7          	lui	t0,0x1
+  ac:	00100313          	addi	t1,zero,1
+  b0:	0062a023          	sw	t1,0(t0) # 1000 <end_program+0xf3c>
+  b4:	0100006f          	jal	zero,c4 <end_program>
+
+000000b8 <fail>:
+  b8:	000012b7          	lui	t0,0x1
+  bc:	001f9393          	slli	t2,t6,0x1
+  c0:	0072a023          	sw	t2,0(t0) # 1000 <end_program+0xf3c>
+
+000000c4 <end_program>:
+  c4:	0000006f          	jal	zero,c4 <end_program>
