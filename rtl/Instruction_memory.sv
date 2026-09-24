@@ -21,16 +21,25 @@
 
 
 module Instruction_memory(
-    input logic [31:0] a, // Dia chi lenh tu PC_present
-    output logic [31:0] rd // Ma may tu dia chi dia chi PC_present
-    );
-    
-    // define mang bo nho ROM 64 cau lenh,  RV32I toi da hon 1 ty cau lenh
-    logic [31:0] ROM[1023:0];
-    
+    input logic [31:0] a,
+    output logic [31:0] rd
+);
+
+    logic [31:0] ROM[16383:0];
+    string hex_file;
+
     initial begin
-        $readmemh("test_alu.hex", ROM); 
+        if (!$value$plusargs("HEX=%s", hex_file)) begin
+            hex_file = "test_alu.hex";
+        end
+
+        $display("[IMEM] Loading HEX: %s", hex_file);
+        $readmemh(hex_file, ROM);
     end
-    
-    assign rd = ROM[a[31:2]];  // dich bit sang trai 2 bit la so dia chi chia 4.
+
+    assign rd = ROM[a[31:2]];
+
 endmodule
+
+
+
