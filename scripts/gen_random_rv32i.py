@@ -11,10 +11,9 @@ SEED = 0x20260929
 # x30/x31 = final signature accumulators
 RESERVED = {0, 20, 30, 31}
 
-DATA_BASE = 0x80000000
-SIG0_ADDR = 0x80000700
-SIG1_ADDR = 0x80000704
-
+DATA_BASE = 0x80010000
+SIG0_ADDR = 0x80010700
+SIG1_ADDR = 0x80010704
 
 def rtype(funct3, funct7, rd, rs1, rs2):
     return (
@@ -95,7 +94,7 @@ def generate(random_count):
     # ------------------------------------------------------------
 
     # x20 = 0x80000000
-    emit(words, lui(20, 0x80000))
+    emit(words, lui(20, 0x80010))
 
     # Known register values.
     for rd in range(1, 20):
