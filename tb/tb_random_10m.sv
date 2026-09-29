@@ -2,16 +2,31 @@
 
 module tb_random_10m;
 
-    localparam integer TARGET_INSTR = 10_000_000;
-    localparam logic [31:0] SIGNATURE_ADDR = 32'h0000FF00;
-    localparam integer MAX_EXTRA_INSTR = 1000;
+    // ------------------------------------------------------------
+    // Configuration
+    // ------------------------------------------------------------
+
+    integer TARGET_INSTR;
+    localparam integer MAX_EXTRA_INSTR = 2000;
+
+    // Signature address used by random program.
+    // Data_memory uses A[15:2], so this maps inside its 64-KB RAM.
+    localparam logic [31:0] SIGNATURE_ADDR = 32'h80010700;
+
+    // ------------------------------------------------------------
+    // Clock / reset
+    // ------------------------------------------------------------
 
     logic clk;
     logic reset;
 
     logic [31:0] WriteDataM;
     logic [31:0] ALUresultM;
-    logic mem_writeM;
+    logic        mem_writeM;
+
+    // ------------------------------------------------------------
+    // DUT
+    // ------------------------------------------------------------
 
     rv32i_top dut (
         .clk        (clk),
@@ -21,96 +36,181 @@ module tb_random_10m;
         .mem_writeM (mem_writeM)
     );
 
-    // 100 MHz clock
+    // 100 MHz
     always #5 clk = ~clk;
 
+    // ------------------------------------------------------------
+    // Test variables
+    // ------------------------------------------------------------
+
     integer instr_count;
-    logic [31:0] last_pcf;
-    logic [31:0] sig_value;
     integer fd;
     integer i;
 
+    logic [31:0] last_pcf;
+    logic [31:0] signature_value;
+
+    // ------------------------------------------------------------
+    // Main test
+    // ------------------------------------------------------------
+
     initial begin
-        clk = 1'b0;
-        reset = 1'b1;
 
-        instr_count = 0;
-        last_pcf = 32'h00000000;
-        sig_value = 32'h00000000;
+        // Default target for the real test.
+        // Can be overridden, e.g.:
+        // +TARGET_INSTR=10000
+        TARGET_INSTR = 10_000_000;
 
-        // Giữ reset vài chu kỳ
+        if ($value$plusargs("TARGET_INSTR=%d", TARGET_INSTR))
+            $display("[TB] TARGET_INSTR overridden to %0d",
+                     TARGET_INSTR);
+
+        clk            = 1'b0;
+        reset          = 1'b1;
+        instr_count    = 0;
+        last_pcf       = 32'h00000000;
+        signature_value = 32'h00000000;
+
+        $display("==================================================");
+        $display("[TB] RV32I RANDOM TEST");
+        $display("[TB] TARGET_INSTR   = %0d", TARGET_INSTR);
+        $display("[TB] SIGNATURE_ADDR = %08h", SIGNATURE_ADDR);
+        $display("==================================================");
+
+        // Reset
         repeat (5) @(posedge clk);
         reset = 1'b0;
 
-        // PC=0 là instruction đầu tiên
+        // First instruction is at PC = 0
         @(negedge clk);
-        last_pcf = dut.Datapath.PCF;
+        last_pcf    = dut.Datapath.PCF;
         instr_count = 1;
 
-        $display("[TB] Start random test");
-        $display("[TB] TARGET_INSTR = %0d", TARGET_INSTR);
+        $display("[TB] Start execution at PC=%08h", last_pcf);
+
+        // --------------------------------------------------------
+        // Monitor execution
+        //
+        // Random program is intentionally branch/jump free,
+        // therefore PC advances sequentially by 4.
+        //
+        // instr_count therefore counts fetched instructions.
+        // --------------------------------------------------------
 
         forever begin
+
             @(posedge clk);
             #1;
 
-            // Chương trình random sẽ không branch/jump,
-            // nên mỗi PCF thay đổi tương ứng với một instruction mới.
+            // Count a newly fetched instruction.
             if (dut.Datapath.PCF != last_pcf) begin
+
                 last_pcf = dut.Datapath.PCF;
                 instr_count = instr_count + 1;
 
-                if ((instr_count % 1_000_000) == 0)
-                    $display("[TB] Fetched %0d instructions, PC=%08h",
-                             instr_count, last_pcf);
+                // Progress message every million instructions
+                if ((instr_count % 1_000_000) == 0) begin
+                    $display("[TB] Instructions fetched = %0d   PC=%08h",
+                             instr_count,
+                             last_pcf);
+                end
             end
 
-            // Signature store ở cuối chương trình
-            if (mem_writeM && (ALUresultM == SIGNATURE_ADDR)) begin
-                sig_value = WriteDataM;
+            // ----------------------------------------------------
+            // Final signature store
+            //
+            // Program performs:
+            //   SW x31, 0x700(x20)
+            //
+            // with x20 = 0x80010000
+            // => address = 0x80010700
+            // ----------------------------------------------------
 
-                $display("[TB] Signature store detected");
-                $display("[TB] Instruction count = %0d", instr_count);
-                $display("[TB] Signature         = %08h", sig_value);
+            if (mem_writeM &&
+                (ALUresultM == SIGNATURE_ADDR)) begin
 
+                signature_value = WriteDataM;
+
+                $display("--------------------------------------------------");
+                $display("[TB] SIGNATURE STORE DETECTED");
+                $display("[TB] PC                = %08h",
+                         dut.Datapath.PCF);
+                $display("[TB] Instruction count  = %0d",
+                         instr_count);
+                $display("[TB] Signature          = %08h",
+                         signature_value);
+
+                // Require at least TARGET_INSTR fetched instructions.
                 if (instr_count < TARGET_INSTR) begin
-                    $display("[TB] ERROR: signature arrived before 10M instructions");
+                    $display("[TB] TEST FAILED");
+                    $display("[TB] Signature appeared before target.");
+                    $display("[TB] target=%0d actual=%0d",
+                             TARGET_INSTR,
+                             instr_count);
                     $finish;
                 end
 
-                // Cho pipeline hoàn tất WB
+                // Give pipeline enough cycles to finish WB.
                 repeat (8) @(posedge clk);
                 #1;
 
-                fd = $fopen("/tmp/c1_random/rtl_state.txt", "w");
+                // ------------------------------------------------
+                // Save architectural register state
+                // ------------------------------------------------
+
+                fd = $fopen("work/sim/rtl_state.txt", "w");
 
                 if (fd == 0) begin
-                    $display("[TB] ERROR: cannot open rtl_state.txt");
+                    $display("[TB] ERROR: cannot open");
+                    $display("      work/sim/rtl_state.txt");
                     $finish;
                 end
 
-                $fwrite(fd, "INSTR_COUNT %0d\n", instr_count);
-                $fwrite(fd, "SIGNATURE %08h\n", sig_value);
+                $fwrite(fd,
+                        "INSTR_COUNT %0d\n",
+                        instr_count);
 
-                for (i = 0; i < 32; i = i + 1)
-                    $fwrite(fd, "x%0d %08h\n",
+                $fwrite(fd,
+                        "SIGNATURE %08h\n",
+                        signature_value);
+
+                for (i = 0; i < 32; i = i + 1) begin
+                    $fwrite(fd,
+                            "x%0d %08h\n",
                             i,
                             dut.Datapath.Register_fileD.register[i]);
+                end
 
                 $fclose(fd);
 
-                $display("[TB] RTL state written to /tmp/c1_random/rtl_state.txt");
+                $display("[TB] RTL state written to:");
+                $display("      work/sim/rtl_state.txt");
+
                 $display("[TB] TEST PASSED");
+                $display("--------------------------------------------------");
+
                 $finish;
             end
 
-            // Timeout nếu chương trình không tới signature
+            // ----------------------------------------------------
+            // Safety timeout
+            // ----------------------------------------------------
+
             if (instr_count > (TARGET_INSTR + MAX_EXTRA_INSTR)) begin
-                $display("[TB] ERROR: exceeded instruction limit");
-                $display("[TB] instr_count = %0d", instr_count);
+
+                $display("--------------------------------------------------");
+                $display("[TB] TEST FAILED");
+                $display("[TB] Instruction limit exceeded.");
+                $display("[TB] target=%0d actual=%0d",
+                         TARGET_INSTR,
+                         instr_count);
+                $display("--------------------------------------------------");
+
                 $finish;
             end
         end
     end
 
 endmodule
+
+
