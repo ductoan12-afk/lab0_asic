@@ -1,0 +1,30 @@
+# Build / compiler artifacts
+*.o
+*.elf
+*.bin
+*.tar.gz
+*.signature
+
+# Simulation / simulator generated files
+*.log
+sim_output
+xcelium.d/
+work/
+cov_work*/
+results*/
+.simvision/
+
+# Generated logs / coverage
+logs/
+coverage/
+
+# Temporary/editor files
+*.swp
+.DS_Store
+
+# Random / Spike generated output
+*.out
+work_spike_state_*.txt
+
+# Large generated random test image
+designs/EX_ALU33/sw/random_10m.hex
